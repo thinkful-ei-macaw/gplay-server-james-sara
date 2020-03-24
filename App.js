@@ -4,22 +4,19 @@ const express = require('express');
 const morgan = require('morgan');
 const cors = require('cors');
 const helmet = require('helmet');
-
+const app = express();
 
 const data = require('./movies-data-small.json');
-const API_TOKEN = process.env.API_TOKEN;
-
-const app = express();
 
 app.use(morgan('dev'));
 app.use(validateAuthorization);
 app.use(helmet());
 app.use(cors());
 
-console.log(API_TOKEN);
-
 function validateAuthorization(req, res, next) {
+  const API_TOKEN = process.env.API_TOKEN;
   const authValue = req.get('Authorization');
+
   if (authValue === undefined) {
     return res.status(400).json({ error: 'Authorization header missing' });
   }
@@ -31,31 +28,41 @@ function validateAuthorization(req, res, next) {
   const token = authValue.split(' ')[1];
 
   if (token !== API_TOKEN) {
-
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   next();
 }
 
 function handleTypes(req, res) {
-  const { movie } = req.query;
+  let { genre, country, avg_vote } = req.query;
+  let results = data;
 
-  if(!movie) {
+  genre = genre && genre.toLowerCase();
+  country = country && country.toLowerCase();
+  avg_vote = avg_vote && parseInt(avg_vote);
+
+  if(!genre && !country && !avg_vote) {
     return res  
-      .send(data);
+      .send(results);
   }
 
-  if (movie) {
-    if(!['movie'].includes(movie)) {
-      return res  
-        .status(400)
-        .send('Genre must be one of genre, country or avg_vote');
-    }
+  if(genre) {
+    results = results.filter(movie => movie.genre.toLowerCase().includes(genre));
   }
+
+  if(country){
+    results = results.filter(movie => movie.country.toLowerCase().includes(country));
+  }
+
+  if(avg_vote) {
+    results = results.filter(movie => parseInt(movie.avg_vote) >= avg_vote);
+  }
+  
+  return res.json(results);
 }
 
-app.get( '/movie', validateAuthorization, handleTypes);
 
+app.get( '/movie', validateAuthorization, handleTypes);
 
 app.listen(8080, () => {
   console.log('Server started on PORT 8080');
